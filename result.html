@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trace-it</title>
+</head>
+<body>
+    <h2>Trace-it Demo</h2>
+
+    <input id="input" type="text" placeholder="Enter URL to trace">
+    <button onclick="trace()">Trace</button>
+
+    <div style="margin-top:20px;">
+        Result:
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function trace() {
+            const text = document.getElementById("input").value;
+
+            const response = await fetch("/trace", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "text/plain"
+                },
+                body: text
+            });
+
+            const result = await response.text();
+
+            document.getElementById("result").innerText = result;
+        }
+    </script>
+</body>
+</html>

@@ -11,6 +11,14 @@ import (
 type TracingTransport struct {
 	RoundTripper http.RoundTripper
 	Log          func(req *http.Request, t *timings)
+	Result       TraceResult
+}
+
+type TraceResult struct {
+	DNSLookup        string
+	TLSHandshake     string
+	Server1bResponse string
+	Total            string
 }
 
 func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -34,7 +42,16 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		tt.Log(req, t)
 	}
 
+	tt.Result.DNSLookup = t.dnsDone.Sub(t.dnsStart).String()
+	tt.Result.TLSHandshake = t.tlsDone.Sub(t.tlsStart).String()
+	tt.Result.Server1bResponse = t.firstByte.Sub(t.gotConn).String()
+	tt.Result.Total = t.done.Sub(t.start).String()
+
 	return res, err
+}
+
+func (tt *TracingTransport) GetTraceResults() TraceResult {
+	return tt.Result
 }
 
 type timedBody struct {
