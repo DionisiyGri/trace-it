@@ -1,4 +1,4 @@
-package main
+package tracer
 
 import (
 	"io"
@@ -48,10 +48,6 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	tt.Result.Total = t.done.Sub(t.start).String()
 
 	return res, err
-}
-
-func (tt *TracingTransport) GetTraceResults() TraceResult {
-	return tt.Result
 }
 
 type timedBody struct {
