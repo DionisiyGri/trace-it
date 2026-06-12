@@ -10,7 +10,7 @@ import (
 // Wrapper around default transport with tracer and logger
 type TracingTransport struct {
 	RoundTripper http.RoundTripper
-	Log          func(req *http.Request, t *timings)
+	Log          func(req *http.Request, t *Timings)
 	Result       TraceResult
 }
 
@@ -27,25 +27,25 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		transport = http.DefaultTransport
 	}
 
-	t := &timings{start: time.Now()}
+	t := &Timings{Start: time.Now()}
 	trace := newTracer(t)
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	res, err := transport.RoundTrip(req) // RoundTrip returns when the response headers are read, not when the body is consumed
 	res.Body = &timedBody{
 		ReadCloser: res.Body,
-		onClose:    func() { t.done = time.Now() }, // helps to calculate total request duration (headers+body)
+		onClose:    func() { t.Done = time.Now() }, // helps to calculate total request duration (headers+body)
 	}
 
-	t.done = time.Now()
+	t.Done = time.Now()
 	if tt.Log != nil {
 		tt.Log(req, t)
 	}
 
-	tt.Result.DNSLookup = t.dnsDone.Sub(t.dnsStart).String()
-	tt.Result.TLSHandshake = t.tlsDone.Sub(t.tlsStart).String()
-	tt.Result.Server1bResponse = t.firstByte.Sub(t.gotConn).String()
-	tt.Result.Total = t.done.Sub(t.start).String()
+	tt.Result.DNSLookup = t.DNSDone.Sub(t.DNSStart).String()
+	tt.Result.TLSHandshake = t.TLSDone.Sub(t.TLSStart).String()
+	tt.Result.Server1bResponse = t.FirstByte.Sub(t.GotConn).String()
+	tt.Result.Total = t.Done.Sub(t.Start).String()
 
 	return res, err
 }

@@ -7,43 +7,43 @@ import (
 	"time"
 )
 
-// timings record timestamps in each hook to calculate durations
-type timings struct {
-	start        time.Time
-	dnsStart     time.Time
-	dnsDone      time.Time
-	connectStart time.Time
-	connectDone  time.Time
-	tlsStart     time.Time
-	tlsDone      time.Time
-	gotConn      time.Time
-	firstByte    time.Time
-	done         time.Time
+// Timings record timestamps in each hook to calculate durations
+type Timings struct {
+	Start        time.Time
+	DNSStart     time.Time
+	DNSDone      time.Time
+	ConnectStart time.Time
+	ConnectDone  time.Time
+	TLSStart     time.Time
+	TLSDone      time.Time
+	GotConn      time.Time
+	FirstByte    time.Time
+	Done         time.Time
 }
 
 // newTracer capture current timestamp in each hook
-func newTracer(t *timings) *httptrace.ClientTrace {
+func newTracer(t *Timings) *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		DNSStart: func(_ httptrace.DNSStartInfo) {
-			t.dnsStart = time.Now()
+			t.DNSStart = time.Now()
 		},
 		DNSDone: func(_ httptrace.DNSDoneInfo) {
-			t.dnsDone = time.Now()
+			t.DNSDone = time.Now()
 		},
 		ConnectStart: func(_, _ string) {
-			t.connectStart = time.Now()
+			t.ConnectStart = time.Now()
 		},
 		ConnectDone: func(_, _ string, _ error) {
-			t.connectDone = time.Now()
+			t.ConnectDone = time.Now()
 		},
 		TLSHandshakeStart: func() {
-			t.tlsStart = time.Now()
+			t.TLSStart = time.Now()
 		},
 		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
-			t.tlsDone = time.Now()
+			t.TLSDone = time.Now()
 		},
 		GotConn: func(info httptrace.GotConnInfo) {
-			t.gotConn = time.Now()
+			t.GotConn = time.Now()
 			if info.Reused {
 				log.Printf("connection reused (idle for %v)", info.IdleTime)
 			} else {
@@ -51,7 +51,7 @@ func newTracer(t *timings) *httptrace.ClientTrace {
 			}
 		},
 		GotFirstResponseByte: func() {
-			t.firstByte = time.Now()
+			t.FirstByte = time.Now()
 		},
 	}
 }
