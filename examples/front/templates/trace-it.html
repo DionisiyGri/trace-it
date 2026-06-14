@@ -6,8 +6,21 @@
 <body>
     <h2>Trace-it Demo</h2>
 
-    <input id="input" type="text"  placeholder="Enter URL to trace">
-    <button onclick="trace()">Trace</button>
+    <div>
+        <input id="url" type="text" placeholder="Enter URL to trace">
+    </div>
+
+    <div style="margin-top:10px;">
+        # of clients: <input id="clients" type="number" min="1" max="100" value="1" placeholder="Number of clients">
+    </div>
+
+    <div style="margin-top:10px;">
+        # of calls: <input id="calls" type="number" min="1" max="100" value="1" placeholder="Number of calls">
+    </div>
+
+    <div style="margin-top:10px;">
+        <button onclick="trace()">Trace</button>
+    </div>
 
     <div style="margin-top:20px;">
         Result:
@@ -16,14 +29,20 @@
 
     <script>
         async function trace() {
-            const text = document.getElementById("input").value;
+            const url = document.getElementById("url").value;
+            const clients = parseInt(document.getElementById("clients").value, 10);
+            const calls = parseInt(document.getElementById("calls").value, 10);
 
             const response = await fetch("/trace", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "text/plain"
+                    "Content-Type": "application/json"
                 },
-                body: text
+                body: JSON.stringify({
+                    url,
+                    clients,
+                    calls
+                })
             });
 
             const result = await response.text();

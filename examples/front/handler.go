@@ -4,18 +4,38 @@ import (
 	"embed"
 	"encoding/json"
 	"html/template"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
-	"github.com/DionisiyGri/trace-it/tracer"
+	"github.com/DionisiyGri/trace-it/examples/waterpool/waterpool"
 )
 
 //go:embed templates
 var tplFolder embed.FS
+
+type TraceInput struct {
+	URL         string `json:"url"`
+	NumClients  int    `json:"clients"`
+	NumRequests int    `json:"calls"`
+}
+
+type TraceResponse struct {
+	Clients   []ClientStats `json:"clients"`
+	GlobalAvg string        `json:"global_avg"`
+}
+
+type ClientStats struct {
+	ClientID int `json:"client"`
+	Count    int `json:"num_req"`
+
+	Fastest string `json:"fastest"`
+	Slowest string `json:"slowest"`
+	Avg     string `json:"avg"`
+}
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(tplFolder, "templates/trace-it.html")
@@ -32,14 +52,14 @@ func traceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	var input TraceInput
+	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	input := string(body)
-	if !isUrl(input) {
+	if !isUrl(input.URL) {
 		http.Error(w, "Enter valid URL, suka", http.StatusBadRequest)
 		return
 	}
@@ -57,18 +77,40 @@ func traceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func traceRequest(url string) (*tracer.TraceResult, error) {
-	var transport tracer.TracingTransport
+func traceRequest(input TraceInput) (TraceResponse, error) {
+	agg := waterpool.NewAggregator()
 
-	client := &http.Client{
-		Transport: &transport,
+	var wg sync.WaitGroup
+	for i := 0; i < input.NumClients; i++ {
+		cl := waterpool.CreateClient(i, agg)
+
+		wg.Add(1)
+		go func(id int, client *http.Client) {
+			defer wg.Done()
+			for j := 0; j < input.NumRequests; j++ {
+				waterpool.Do(waterpool.Input{ID: i, Client: cl, URL: input.URL})
+			}
+		}(i, cl)
+	}
+	wg.Wait()
+
+	stats := waterpool.ShowStats(agg)
+
+	resp := TraceResponse{
+		Clients:   make([]ClientStats, 0, len(stats.Results)),
+		GlobalAvg: stats.GlobalAvg.String(),
 	}
 
-	_, err := client.Get(url)
-	if err != nil {
-		return nil, err
+	for _, st := range stats.Results {
+		resp.Clients = append(resp.Clients, ClientStats{
+			ClientID: st.ClientID,
+			Count:    st.Count,
+			Fastest:  st.Fastest.String(),
+			Slowest:  st.Slowest.String(),
+			Avg:      st.Avg.String(),
+		})
 	}
-	return &transport.Result, nil
+	return resp, nil
 }
 
 func isUrl(str string) bool {
@@ -79,7 +121,6 @@ func isUrl(str string) bool {
 	}
 
 	address := net.ParseIP(url.Host)
-	log.Print("host=", address)
 
 	if address == nil {
 		log.Print("nil address; host=", url.Host)
