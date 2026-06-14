@@ -39,7 +39,7 @@ func traceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := string(body)
-	if !IsUrl(input) {
+	if !isUrl(input) {
 		http.Error(w, "Enter valid URL, suka", http.StatusBadRequest)
 		return
 	}
@@ -71,7 +71,7 @@ func traceRequest(url string) (*tracer.TraceResult, error) {
 	return &transport.Result, nil
 }
 
-func IsUrl(str string) bool {
+func isUrl(str string) bool {
 	url, err := url.ParseRequestURI(str)
 	if err != nil {
 		log.Print(err.Error())
