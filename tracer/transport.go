@@ -11,14 +11,15 @@ import (
 type TracingTransport struct {
 	RoundTripper http.RoundTripper
 	Log          func(req *http.Request, t *Timings)
+	OnResult     func(TraceResult)
 	Result       TraceResult
 }
 
 type TraceResult struct {
-	DNSLookup        string
-	TLSHandshake     string
-	Server1bResponse string
-	Total            string
+	DNSLookup        time.Duration
+	TLSHandshake     time.Duration
+	Server1bResponse time.Duration
+	Total            time.Duration
 }
 
 func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -34,29 +35,39 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	res, err := transport.RoundTrip(req) // RoundTrip returns when the response headers are read, not when the body is consumed
 	res.Body = &timedBody{
 		ReadCloser: res.Body,
+		onResult:   tt.OnResult,
 		onClose:    func() { t.Done = time.Now() }, // helps to calculate total request duration (headers+body)
+		timings:    t,
 	}
 
-	t.Done = time.Now()
 	if tt.Log != nil {
 		tt.Log(req, t)
 	}
-
-	tt.Result.DNSLookup = t.DNSDone.Sub(t.DNSStart).String()
-	tt.Result.TLSHandshake = t.TLSDone.Sub(t.TLSStart).String()
-	tt.Result.Server1bResponse = t.FirstByte.Sub(t.GotConn).String()
-	tt.Result.Total = t.Done.Sub(t.Start).String()
 
 	return res, err
 }
 
 type timedBody struct {
 	io.ReadCloser
-	onClose func()
+
+	onClose  func()
+	onResult func(TraceResult)
+	timings  *Timings
 }
 
 func (tb *timedBody) Close() error {
 	tb.onClose()
+
+	tb.timings.Done = time.Now()
+
+	if tb.onResult != nil {
+		tb.onResult(TraceResult{
+			DNSLookup:        tb.timings.DNSDone.Sub(tb.timings.DNSStart),
+			TLSHandshake:     tb.timings.TLSDone.Sub(tb.timings.TLSStart),
+			Server1bResponse: tb.timings.FirstByte.Sub(tb.timings.GotConn),
+			Total:            tb.timings.Done.Sub(tb.timings.Start),
+		})
+	}
 	return tb.ReadCloser.Close()
 }
 
