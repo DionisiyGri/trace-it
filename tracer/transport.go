@@ -33,11 +33,12 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	res, err := transport.RoundTrip(req) // RoundTrip returns when the response headers are read, not when the body is consumed
-	res.Body = &timedBody{
-		ReadCloser: res.Body,
-		onResult:   tt.OnResult,
-		onClose:    func() { t.Done = time.Now() }, // helps to calculate total request duration (headers+body)
-		timings:    t,
+	if res != nil {
+		res.Body = &timedBody{
+			ReadCloser: res.Body,
+			onResult:   tt.OnResult,
+			timings:    t,
+		}
 	}
 
 	if tt.Log != nil {
@@ -49,15 +50,13 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 type timedBody struct {
 	io.ReadCloser
+	timings *Timings
 
 	onClose  func()
 	onResult func(TraceResult)
-	timings  *Timings
 }
 
 func (tb *timedBody) Close() error {
-	tb.onClose()
-
 	tb.timings.Done = time.Now()
 
 	if tb.onResult != nil {
