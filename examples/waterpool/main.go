@@ -12,7 +12,7 @@ import (
 )
 
 const _testURL = "https://tratt.net/laurie/blog/2026/test_case_reducers_are_underappreciated_debugging_tools.html"
-const _reqPerClient = 2
+const _reqPerClient = 20
 const _numOfClients = 2
 
 type Result struct {
@@ -56,11 +56,7 @@ func printStats(agg *Aggregator) {
 
 		log.Printf(
 			"client=%d requests=%d avg=%v fastest=%v slowest=%v",
-			clientID,
-			s.Count,
-			avg,
-			s.Fastest,
-			s.Slowest,
+			clientID, s.Count, avg, s.Fastest, s.Slowest,
 		)
 
 		globalCount += s.Count
@@ -68,10 +64,7 @@ func printStats(agg *Aggregator) {
 	}
 
 	if globalCount > 0 {
-		log.Printf(
-			"global avg=%v",
-			globalTotal/time.Duration(globalCount),
-		)
+		log.Printf("global avg=%v", globalTotal/time.Duration(globalCount))
 	}
 }
 
