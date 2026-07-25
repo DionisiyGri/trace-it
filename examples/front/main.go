@@ -8,12 +8,12 @@ import (
 )
 
 func main() {
-	host := os.Getenv("HOST")
+	host := os.Getenv("HOST_TRACEIT")
 	if host == "" {
 		log.Fatalf("host is not provided")
 	}
 
-	port := os.Getenv("PORT")
+	port := os.Getenv("PORT_TRACEIT")
 	if port == "" {
 		log.Fatalf("port is nor provided")
 	}

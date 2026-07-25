@@ -8,10 +8,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
-	"github.com/DionisiyGri/trace-it/examples/waterpool/waterpool"
+	"github.com/DionisiyGri/trace-it/examples/waterpool"
 )
 
 //go:embed templates
@@ -110,6 +111,11 @@ func traceRequest(input TraceInput) (TraceResponse, error) {
 			Avg:      st.Avg.String(),
 		})
 	}
+
+	slices.SortFunc(resp.Clients, func(a, b ClientStats) int {
+		return a.ClientID - b.ClientID
+	})
+
 	return resp, nil
 }
 

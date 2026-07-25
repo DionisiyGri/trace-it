@@ -1,4 +1,4 @@
-package main
+package waterpool
 
 import (
 	"sync"
@@ -8,8 +8,7 @@ import (
 )
 
 type Aggregator struct {
-	mu sync.Mutex
-
+	mu      sync.Mutex
 	Clients map[int]*ClientStats
 }
 
