@@ -2,27 +2,29 @@ package tracer
 
 import (
 	"crypto/tls"
-	"log"
 	"net/http/httptrace"
 	"time"
 )
 
-// Timings record timestamps in each hook to calculate durations
-type Timings struct {
-	Start        time.Time
-	DNSStart     time.Time
-	DNSDone      time.Time
-	ConnectStart time.Time
-	ConnectDone  time.Time
-	TLSStart     time.Time
-	TLSDone      time.Time
-	GotConn      time.Time
-	FirstByte    time.Time
-	Done         time.Time
+// traceState record timestamps and track state in each hook to calculate durations
+type traceState struct {
+	Start            time.Time
+	DNSStart         time.Time
+	DNSDone          time.Time
+	ConnectStart     time.Time
+	ConnectDone      time.Time
+	TLSStart         time.Time
+	TLSDone          time.Time
+	GotConn          time.Time
+	FirstByte        time.Time
+	Done             time.Time
+	ConnectionIdle   time.Duration
+	ConnectionReused bool
+	RemoteAddr       string
 }
 
 // newTracer capture current timestamp in each hook
-func newTracer(t *Timings) *httptrace.ClientTrace {
+func newTracer(t *traceState) *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		DNSStart: func(_ httptrace.DNSStartInfo) {
 			t.DNSStart = time.Now()
@@ -44,10 +46,11 @@ func newTracer(t *Timings) *httptrace.ClientTrace {
 		},
 		GotConn: func(info httptrace.GotConnInfo) {
 			t.GotConn = time.Now()
-			if info.Reused {
-				log.Printf("connection reused (idle for %v)", info.IdleTime)
-			} else {
-				log.Printf("new connection to %s", info.Conn.RemoteAddr())
+			t.ConnectionReused = info.Reused
+			t.ConnectionIdle = info.IdleTime
+
+			if info.Conn != nil {
+				t.RemoteAddr = info.Conn.RemoteAddr().String()
 			}
 		},
 		GotFirstResponseByte: func() {

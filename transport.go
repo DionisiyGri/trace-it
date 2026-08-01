@@ -10,16 +10,40 @@ import (
 // Wrapper around default transport with tracer and logger
 type TracingTransport struct {
 	RoundTripper http.RoundTripper
-	Log          func(req *http.Request, t *Timings)
 	OnResult     func(TraceResult)
-	Result       TraceResult
 }
 
+// TraceResult contains metadata and timing information collected for a completed HTTP request
 type TraceResult struct {
+	URL            string
+	Method         string
+	StatusCode     int
+	Timings        Timings
+	ConnectionInfo ConnectionInfo
+}
+
+// Timings contains the measured durations of each request phase
+type Timings struct {
 	DNSLookup        time.Duration
 	TLSHandshake     time.Duration
 	Server1bResponse time.Duration
 	Total            time.Duration
+}
+
+// ConnectionInfo contains extra info about connection
+type ConnectionInfo struct {
+	IsReused   bool
+	Idle       time.Duration
+	RemoteAddr string
+}
+
+// wrapper around original body with exta info
+type timedBody struct {
+	io.ReadCloser
+
+	traceState *traceState
+
+	onResult func(TraceResult)
 }
 
 func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -28,45 +52,49 @@ func (tt *TracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		transport = http.DefaultTransport
 	}
 
-	t := &Timings{Start: time.Now()}
+	t := &traceState{Start: time.Now()}
 	trace := newTracer(t)
-	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
-	res, err := transport.RoundTrip(req) // RoundTrip returns when the response headers are read, not when the body is consumed
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+	res, err := transport.RoundTrip(req) // NB: RoundTrip returns when the response headers are read, not when the body is consumed
 	if res != nil {
 		res.Body = &timedBody{
 			ReadCloser: res.Body,
-			onResult:   tt.OnResult,
-			timings:    t,
-		}
-	}
+			traceState: t,
+			onResult: func(r TraceResult) {
+				r.URL = req.URL.String()
+				r.Method = req.Method
+				r.StatusCode = res.StatusCode
 
-	if tt.Log != nil {
-		tt.Log(req, t)
+				if tt.OnResult != nil {
+					tt.OnResult(r)
+				}
+			},
+		}
 	}
 
 	return res, err
 }
 
-type timedBody struct {
-	io.ReadCloser
-	timings *Timings
-
-	onClose  func()
-	onResult func(TraceResult)
-}
-
 func (tb *timedBody) Close() error {
-	tb.timings.Done = time.Now()
+	tb.traceState.Done = time.Now()
 
 	if tb.onResult != nil {
 		tb.onResult(TraceResult{
-			DNSLookup:        tb.timings.DNSDone.Sub(tb.timings.DNSStart),
-			TLSHandshake:     tb.timings.TLSDone.Sub(tb.timings.TLSStart),
-			Server1bResponse: tb.timings.FirstByte.Sub(tb.timings.GotConn),
-			Total:            tb.timings.Done.Sub(tb.timings.Start),
+			Timings: Timings{
+				DNSLookup:        tb.traceState.DNSDone.Sub(tb.traceState.DNSStart),
+				TLSHandshake:     tb.traceState.TLSDone.Sub(tb.traceState.TLSStart),
+				Server1bResponse: tb.traceState.FirstByte.Sub(tb.traceState.GotConn),
+				Total:            tb.traceState.Done.Sub(tb.traceState.Start),
+			},
+			ConnectionInfo: ConnectionInfo{
+				IsReused:   tb.traceState.ConnectionReused,
+				Idle:       tb.traceState.ConnectionIdle,
+				RemoteAddr: tb.traceState.RemoteAddr,
+			},
 		})
 	}
+
 	return tb.ReadCloser.Close()
 }
 
